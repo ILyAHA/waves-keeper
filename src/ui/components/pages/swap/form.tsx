@@ -320,8 +320,6 @@ export function SwapForm({
       : null;
 
   function setFromAmount(newFromAmount: string) {
-    console.log(state.fromAmount, newFromAmount);
-
     if (newFromAmount !== state.fromAmount) {
       dispatch({ type: 'SET_FROM_AMOUNT', value: newFromAmount });
 
