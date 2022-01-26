@@ -51,7 +51,7 @@ export function NftItem({ asset, className, onInfoClick, onSendClick }: Props) {
             )}
           </Tooltip>
 
-          <Tooltip content={<Trans i18nKey={'assetInfo.sendAssetTooltip'} />}>
+          {/* <Tooltip content={<Trans i18nKey={'assetInfo.sendAssetTooltip'} />}>
             {props => (
               <button
                 className={styles.sendBtn}
@@ -69,7 +69,7 @@ export function NftItem({ asset, className, onInfoClick, onSendClick }: Props) {
                 </svg>
               </button>
             )}
-          </Tooltip>
+          </Tooltip> */}
         </MoreActions>
       )}
     </div>

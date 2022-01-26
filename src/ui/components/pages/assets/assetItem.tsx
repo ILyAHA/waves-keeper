@@ -141,7 +141,7 @@ export function AssetItem({
             )}
           </Tooltip>
 
-          <Tooltip content={<Trans i18nKey={'assetInfo.sendAssetTooltip'} />}>
+          {/* <Tooltip content={<Trans i18nKey={'assetInfo.sendAssetTooltip'} />}>
             {props => (
               <button
                 className={styles.sendBtn}
@@ -160,7 +160,7 @@ export function AssetItem({
                 </svg>
               </button>
             )}
-          </Tooltip>
+          </Tooltip> */}
         </MoreActions>
       )}
     </div>
