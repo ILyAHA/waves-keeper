@@ -101,45 +101,45 @@ describe('Settings', function () {
     });
   });
 
-  describe('Network', function () {
-    let nodeUrlInput: WebElement,
-      matcherUrlInput: WebElement,
-      setDefaultBtn: WebElement,
-      nodeUrl: string,
-      matcherUrl: string;
+  // describe('Network', function () {
+  //   let nodeUrlInput: WebElement,
+  //     matcherUrlInput: WebElement,
+  //     setDefaultBtn: WebElement,
+  //     nodeUrl: string,
+  //     matcherUrl: string;
 
-    before(async function () {
-      await this.driver
-        .wait(until.elementLocated(By.css('button#settingsNetwork')), this.wait)
-        .click();
+  //   before(async function () {
+  //     await this.driver
+  //       .wait(until.elementLocated(By.css('button#settingsNetwork')), this.wait)
+  //       .click();
 
-      await this.driver.wait(
-        until.elementLocated(
-          By.xpath("//div[contains(@class, '-settings-networkTab')]")
-        ),
-        this.wait
-      );
+  //     await this.driver.wait(
+  //       until.elementLocated(
+  //         By.xpath("//div[contains(@class, '-settings-networkTab')]")
+  //       ),
+  //       this.wait
+  //     );
 
-      nodeUrlInput = this.driver.wait(
-        until.elementLocated(By.css('input#node_address')),
-        this.wait
-      );
-      matcherUrlInput = this.driver.wait(
-        until.elementLocated(By.css('input#matcher_address')),
-        this.wait
-      );
-      setDefaultBtn = this.driver.wait(
-        until.elementLocated(By.css('button#setDefault')),
-        this.wait
-      );
+  //     nodeUrlInput = this.driver.wait(
+  //       until.elementLocated(By.css('input#node_address')),
+  //       this.wait
+  //     );
+  //     matcherUrlInput = this.driver.wait(
+  //       until.elementLocated(By.css('input#matcher_address')),
+  //       this.wait
+  //     );
+  //     setDefaultBtn = this.driver.wait(
+  //       until.elementLocated(By.css('button#setDefault')),
+  //       this.wait
+  //     );
 
-      nodeUrl = await nodeUrlInput.getAttribute('value');
-      matcherUrl = await matcherUrlInput.getAttribute('value');
-    });
+  //     nodeUrl = await nodeUrlInput.getAttribute('value');
+  //     matcherUrl = await matcherUrlInput.getAttribute('value');
+  //   });
 
-    after(async function () {
-      await this.driver.findElement(By.css('div.arrow-back-icon')).click();
-    });
+  //   after(async function () {
+  //     await this.driver.findElement(By.css('div.arrow-back-icon')).click();
+  //   });
 
     describe('Node URL', function () {
       it('Is shown', async function () {
