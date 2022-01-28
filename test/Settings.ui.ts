@@ -141,40 +141,40 @@ describe('Settings', function () {
   //     await this.driver.findElement(By.css('div.arrow-back-icon')).click();
   //   });
 
-    describe('Node URL', function () {
-      it('Is shown', async function () {
-        expect(nodeUrl).not.to.be.empty;
-      });
-      it('Can be changed', async function () {
-        await nodeUrlInput.clear();
-        expect(await nodeUrlInput.getText()).not.to.be.equal(nodeUrl);
-      });
-      it('Can be copied');
-    });
+  //   describe('Node URL', function () {
+  //     it('Is shown', async function () {
+  //       expect(nodeUrl).not.to.be.empty;
+  //     });
+  //     it('Can be changed', async function () {
+  //       await nodeUrlInput.clear();
+  //       expect(await nodeUrlInput.getText()).not.to.be.equal(nodeUrl);
+  //     });
+  //     it('Can be copied');
+  //   });
 
-    describe('Matcher URL', function () {
-      it('Is shown', async function () {
-        expect(matcherUrl).not.to.be.empty;
-      });
-      it('Can be changed', async function () {
-        await matcherUrlInput.clear();
-        expect(await matcherUrlInput.getAttribute('value')).not.to.be.equal(
-          matcherUrl
-        );
-      });
-      it('Can be copied');
-    });
+  //   describe('Matcher URL', function () {
+  //     it('Is shown', async function () {
+  //       expect(matcherUrl).not.to.be.empty;
+  //     });
+  //     it('Can be changed', async function () {
+  //       await matcherUrlInput.clear();
+  //       expect(await matcherUrlInput.getAttribute('value')).not.to.be.equal(
+  //         matcherUrl
+  //       );
+  //     });
+  //     it('Can be copied');
+  //   });
 
-    describe('Set default', function () {
-      it('Resets Node and Matcher URLs', async function () {
-        await setDefaultBtn.click();
-        expect(await nodeUrlInput.getAttribute('value')).to.be.equal(nodeUrl);
-        expect(await matcherUrlInput.getAttribute('value')).to.be.equal(
-          matcherUrl
-        );
-      });
-    });
-  });
+  //   describe('Set default', function () {
+  //     it('Resets Node and Matcher URLs', async function () {
+  //       await setDefaultBtn.click();
+  //       expect(await nodeUrlInput.getAttribute('value')).to.be.equal(nodeUrl);
+  //       expect(await matcherUrlInput.getAttribute('value')).to.be.equal(
+  //         matcherUrl
+  //       );
+  //     });
+  //   });
+  // });
 
   describe('Permissions control', function () {
     before(async function () {
