@@ -66,31 +66,31 @@ export class StatisticsController {
   }
 
   sendEvents() {
-    this.sended = this.sended
-      .then(() => new Promise(resolve => setTimeout(resolve, 1000)))
-      .then(
-        () => {
-          if (this.events.length === 0) {
-            return null;
-          }
+    // this.sended = this.sended
+    //   .then(() => new Promise(resolve => setTimeout(resolve, 1000)))
+    //   .then(
+    //     () => {
+    //       if (this.events.length === 0) {
+    //         return null;
+    //       }
 
-          const events = this.events;
-          this.events = [];
+    //       const events = this.events;
+    //       this.events = [];
 
-          return fetch('https://api.amplitude.com/2/httpapi', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: '*/*',
-            },
-            body: JSON.stringify({
-              api_key: statisticsApiKey,
-              events: events,
-            }),
-          });
-        },
-        () => {}
-      );
+    //       return fetch('https://api.amplitude.com/2/httpapi', {
+    //         method: 'POST',
+    //         headers: {
+    //           'Content-Type': 'application/json',
+    //           Accept: '*/*',
+    //         },
+    //         body: JSON.stringify({
+    //           api_key: statisticsApiKey,
+    //           events: events,
+    //         }),
+    //       });
+    //     },
+    //     () => {}
+    //   );
   }
 
   /**
