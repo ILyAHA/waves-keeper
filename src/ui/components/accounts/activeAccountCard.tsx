@@ -11,7 +11,7 @@ import { Copy } from '../ui/copy/Copy';
 import * as styles from './activeAccountCard.module.css';
 import { Tooltip } from '../ui/tooltip';
 
-const SHOW_SWAP_BUTTON_NETWORKS = [''];//['mainnet']
+const SHOW_SWAP_BUTTON_NETWORKS = [''];
 
 if (WAVESKEEPER_DEBUG) {
   SHOW_SWAP_BUTTON_NETWORKS.push('testnet');
