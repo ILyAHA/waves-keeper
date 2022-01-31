@@ -19,10 +19,10 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         id: issues
 
-      # - name: Report a new commit
-      #   run: |
-      #     curl -X POST -H 'Content-type: application/json' --data "$ISSUES_LIST" "$HOOKS_URL/$HOOK_MERGE"
-      #   env:
-      #     ISSUES_LIST: ${{ steps.issues.outputs.LIST }}
-      #     HOOKS_URL: ${{ secrets.HOOKS_URL }}
-      #     HOOK_MERGE: ${{ secrets.HOOK_MERGE }}
+      - name: Report a new commit
+        run: |
+          echo REPORTED
+        env:
+          ISSUES_LIST: ${{ steps.issues.outputs.LIST }}
+          HOOKS_URL: ${{ secrets.HOOKS_URL }}
+          HOOK_MERGE: ${{ secrets.HOOK_MERGE }}
