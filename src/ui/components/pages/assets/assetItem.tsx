@@ -140,27 +140,6 @@ export function AssetItem({
               </button>
             )}
           </Tooltip>
-
-          <Tooltip content={<Trans i18nKey={'assetInfo.sendAssetTooltip'} />}>
-            {props => (
-              <button
-                className={styles.sendBtn}
-                type="button"
-                onClick={() => onSendClick(assetId)}
-                {...props}
-                data-testid="sendBtn"
-              >
-                <svg
-                  className={styles.sendIcon}
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M15.19 7.77178L4.08117 18.8806L5.46862 20.2681L16.5774 9.15923L18.6586 11.2404L19.5743 4.77489L13.1088 5.69061L15.19 7.77178Z" />
-                </svg>
-              </button>
-            )}
-          </Tooltip>
         </MoreActions>
       )}
     </div>

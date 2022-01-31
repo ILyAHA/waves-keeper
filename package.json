@@ -1,11 +1,7 @@
 {
-  "name": "waveskeeper",
+  "name": "waveskeeper-blocked",
   "version": "2.0.0",
   "description": "",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com:wavesplatform/waves-keeper.git"
-  },
   "license": "ISC",
   "engineStrict": true,
   "engines": {
