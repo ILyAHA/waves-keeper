@@ -1,11 +1,11 @@
-import * as React from 'react';
-import { Trans } from 'react-i18next';
-import { Money } from '@waves/data-entities';
-import { BigNumber } from '@waves/bignumber';
-import { Avatar } from '../ui/avatar/Avatar';
-import { Balance } from '../ui/balance/Balance';
-import * as styles from './accountCard.module.css';
-import { Tooltip } from '../ui/tooltip';
+import * as React from "react";
+import { Trans } from "react-i18next";
+import { Money } from "@waves/data-entities";
+import { BigNumber } from "@waves/bignumber";
+import { Avatar } from "../ui/avatar/Avatar";
+import { Balance } from "../ui/balance/Balance";
+import * as styles from "./accountCard.module.css";
+import { Tooltip } from "../ui/tooltip";
 
 interface Account {
   address: string;
@@ -42,7 +42,7 @@ export function AccountCard({ account, balance, onClick, onInfoClick }: Props) {
       />
 
       <Tooltip content={<Trans i18nKey="accountCard.infoTooltip" />}>
-        {props => (
+        {(props) => (
           <button
             className={styles.infoButton}
             data-testid="accountInfoButton"
