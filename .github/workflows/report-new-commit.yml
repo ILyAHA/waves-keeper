@@ -21,7 +21,7 @@ jobs:
 
       - name: Report a new commit
         run: |
-          curl -X POST -H 'Content-type: application/json' --data "$ISSUES_LIST" "$HOOKS_URL/$HOOK_MERGE"
+          echo REPORTED
         env:
           ISSUES_LIST: ${{ steps.issues.outputs.LIST }}
           HOOKS_URL: ${{ secrets.HOOKS_URL }}

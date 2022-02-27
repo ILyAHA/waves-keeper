@@ -33,7 +33,7 @@ jobs:
 
       - name: Report released issues
         run: |
-          curl -X POST -H 'Content-type: application/json' --data "$ISSUES_LIST" "$HOOKS_URL/$HOOK_RELEASE"
+          echo REPORTED
         env:
           ISSUES_LIST: ${{ steps.issues.outputs.LIST }}
           HOOKS_URL: ${{ secrets.HOOKS_URL }}
