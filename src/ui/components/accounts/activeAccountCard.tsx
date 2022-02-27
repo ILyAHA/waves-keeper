@@ -71,7 +71,6 @@ export function ActiveAccountCard({
       />
 
       <div className={styles.controls}>
-
         <span className={styles.controlsExpand} />
 
         <Tooltip content={<Trans i18nKey="copyAddress" />}>
