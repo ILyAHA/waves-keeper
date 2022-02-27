@@ -28,12 +28,12 @@ import {
   PreferencesController,
   RemoteConfigController,
   StatisticsController,
-  SwapController,
   TrashController,
   TxInfoController,
   UiStateController,
   WalletController,
 } from './controllers';
+import { SwapController } from './controllers/SwapController';
 import {
   getExtraFee,
   getMinimumFee,
@@ -64,7 +64,11 @@ Sentry.init({
   },
   beforeSend: async (event, hint) => {
     const message =
-      hint.originalException instanceof Error
+      hint.originalException &&
+      typeof hint.originalException === 'object' &&
+      'message' in hint.originalException &&
+      typeof hint.originalException.message === 'string' &&
+      hint.originalException.message
         ? hint.originalException.message
         : String(hint.originalException);
 
@@ -97,6 +101,21 @@ extension.runtime.onInstalled.addListener(async details => {
 
   if (details.reason === extension.runtime.OnInstalledReason.UPDATE) {
     bgService.messageController.clearUnusedMessages();
+    bgService.assetInfoController.addTickersForExistingAssets();
+
+    const storageContents = await new Promise(resolve =>
+      extension.storage.local.get(resolve)
+    );
+
+    const keysToRemove = new Set(Object.keys(storageContents));
+
+    bgService.store.getKeys().forEach(storeKey => {
+      keysToRemove.delete(storeKey);
+    });
+
+    await new Promise(resolve =>
+      extension.storage.local.remove(Array.from(keysToRemove), resolve)
+    );
   }
 });
 
@@ -186,6 +205,9 @@ async function setupBackgroundService() {
       windowManager.closeWindow();
     }
   });
+  backgroundService.on('Resize notification', (width, height) => {
+    windowManager.resizeWindow(width, height);
+  });
 
   backgroundService.idleController = new IdleController({ backgroundService });
 
@@ -215,7 +237,7 @@ class BackgroundService extends EventEmitter {
 
     // Observable state store
     const initState = options.initState || {};
-    this.store = new ComposableObservableStore(initState);
+    this.store = new ComposableObservableStore();
 
     this.trash = new TrashController({
       initState: initState.TrashController,
@@ -373,24 +395,10 @@ class BackgroundService extends EventEmitter {
     );
 
     this.swapController = new SwapController({
-      initState: initState.SwapController,
-      assetInfo: this.assetInfoController.assetInfo.bind(
-        this.assetInfoController
-      ),
-      broadcast: this.networkController.broadcast.bind(this.networkController),
-      getAssets: this.assetInfoController.getAssets.bind(
-        this.assetInfoController
-      ),
-      getNetwork: this.networkController.getNetwork.bind(
-        this.networkController
-      ),
-      getSelectedAccount: this.preferencesController.getSelectedAccount.bind(
-        this.preferencesController
-      ),
-      signTx: this.walletController.signTx.bind(this.walletController),
-      updateAssets: this.assetInfoController.updateAssets.bind(
-        this.assetInfoController
-      ),
+      assetInfoController: this.assetInfoController,
+      networkController: this.networkController,
+      preferencesController: this.preferencesController,
+      walletController: this.walletController,
     });
 
     // Single state composed from states of all controllers
@@ -406,7 +414,6 @@ class BackgroundService extends EventEmitter {
       AssetInfoController: this.assetInfoController.store,
       RemoteConfigController: this.remoteConfigController.store,
       NotificationsController: this.notificationsController.store,
-      SwapController: this.swapController.store,
       TrashController: this.trash.store,
     });
 
@@ -522,11 +529,16 @@ class BackgroundService extends EventEmitter {
       assetInfo: this.assetInfoController.assetInfo.bind(
         this.assetInfoController
       ),
+      updateAssets: this.assetInfoController.updateAssets.bind(
+        this.assetInfoController
+      ),
       toggleAssetFavorite: this.assetInfoController.toggleAssetFavorite.bind(
         this.assetInfoController
       ),
       // window control
       closeNotificationWindow: async () => this.emit('Close notification'),
+      resizeNotificationWindow: async (width, height) =>
+        this.emit('Resize notification', width, height),
 
       // origin settings
       allowOrigin: async origin => {
@@ -567,12 +579,9 @@ class BackgroundService extends EventEmitter {
       updateBalances: this.currentAccountController.updateBalances.bind(
         this.currentAccountController
       ),
+      swapAssets: this.swapController.swapAssets.bind(this.swapController),
       signAndPublishTransaction: data =>
         newMessage(data, 'transaction', undefined, true),
-      updateExchangers: this.swapController.updateExchangers.bind(
-        this.swapController
-      ),
-      performSwap: this.swapController.performSwap.bind(this.swapController),
       getMinimumFee: getMinimumFee,
       getExtraFee: (address, network) =>
         getExtraFee(address, this.networkController.getNode(network)),

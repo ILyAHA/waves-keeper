@@ -9,13 +9,15 @@ import { useAppDispatch, useAppSelector } from '../../../store';
 import { favoriteAsset } from '../../../actions';
 import { Tooltip } from '../../ui/tooltip';
 import { MoreActions } from './moreActions';
+import { isSwappableAsset } from 'assets/utils';
 
 interface Props {
   balance: Money;
   assetId: string;
   className?: string;
-  onInfoClick?: (assetId: string) => void;
-  onSendClick?: (assetId: string) => void;
+  onInfoClick: (assetId: string) => void;
+  onSendClick: (assetId: string) => void;
+  onSwapClick: (assetId: string) => void;
 }
 
 export function AssetItem({
@@ -24,9 +26,11 @@ export function AssetItem({
   className,
   onInfoClick,
   onSendClick,
+  onSwapClick,
 }: Props) {
   const dispatch = useAppDispatch();
   const assets = useAppSelector(state => state.assets);
+  const currentNetwork = useAppSelector(state => state.currentNetwork);
   const asset = assets[assetId];
 
   const displayName = asset?.displayName;

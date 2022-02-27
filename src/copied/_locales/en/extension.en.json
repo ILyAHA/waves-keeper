@@ -27,7 +27,7 @@
   },
   "assetInfo": {
     "id": "ID",
-    "displayName": "Name",
+    "name": "Name",
     "ticker": "Ticker",
     "precision": "Decimals points",
     "quantity": "Total issued",
@@ -44,6 +44,7 @@
     "favAddTooltip": "Add to Favorites",
     "favRemoveTooltip": "Remove from Favorites",
     "sendAssetTooltip": "Send",
+    "swapAssetTooltip": "Swap",
     "viewDetailsInExplorer": "View details in Explorer"
   },
   "assets": {
@@ -74,6 +75,10 @@
     "onlyMyAssets": "Only Issued by Me",
     "onlyFavorites": "Only Favorites",
     "resetFilters": "Reset filters"
+  },
+  "assetSelectModal": {
+    "searchPlaceholder": "Search by ticker, name or enter an id",
+    "title": "Select a token"
   },
   "historyCard": {
     "burn": "Burn Asset",
@@ -510,18 +515,25 @@
     "wavesAuthConfirmed": "Sign a waves auth request!"
   },
   "swap": {
+    "amountToSendError": "Could not perform swap due to SwopFi dApp state. Please try again or slightly increase slippage tolerance if possible",
     "closeBtnText": "Close",
+    "exchangeChannelConnectionError": "Could not connect to swap service, you may see stale data. Please try again later",
+    "exchangeChannelInvalidAssetPairError": "Invalid asset pair selected",
+    "exchangeChannelUnknownError": "Failed to get swap details, you may see stale data. Please try again later",
+    "failMessage": "Swap did not succeed, please try again",
     "fromInputLabel": "From {{asset}}",
+    "gainBestPrice": "Best Price",
+    "gainTooltip": "Profit of swapping through Keeper compared to other services",
+    "insufficientFundsError": "Insufficient funds",
     "minimumReceived": "Minimum Received",
-    "minimumReceivedTooltip": "Your transaction will revert if there is a large, unfavorable price movement before it is confirmed",
-    "pairInputLabel": "Pair",
+    "minimumReceivedTooltip": "Minimum amount you will receive, taking slippage tolerance into account",
     "priceImpact": "Price Impact",
     "priceImpactTooltip": "The difference between the exchanger price and estimated price due to trade size.",
-    "failMessage": "Swap did not succeed, please try again",
-    "fee": "Fee",
-    "feeTooltip": "SwopFi fee ({{commission}}%) + Keeper fee ({{keeperCommission}}%)",
-    "insufficientFundsError": "Insufficient funds",
     "priceLabel": "Price",
+    "route": "Route",
+    "routeTooltip": "List of assets involved in swap for target asset",
+    "slippageTolerance": "Slippage Tolerance",
+    "slippageToleranceTooltip": "Swap will be cancelled if the price changes unfavorably by more than this percentage",
     "statusFailed": "Swap failed",
     "statusInProgress": "Waiting for swap completion...",
     "statusSucceeded": "Swap succeeded",

@@ -1,277 +1,140 @@
 import BigNumber from '@waves/bignumber';
 import { Asset, Money } from '@waves/data-entities';
+import cn from 'classnames';
 import * as React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { AssetAmountInput } from 'assets/amountInput';
+import { AssetSelectModal } from 'assets/selectModal';
 import { convertToSponsoredAssetFee } from 'assets/utils';
+import { Button } from 'ui/components/ui/buttons/Button';
+import { Loader } from 'ui/components/ui/loader/Loader';
+import { Modal } from 'ui/components/ui/modal/Modal';
+import { Select } from 'ui/components/ui/select/Select';
 import { Tooltip } from 'ui/components/ui/tooltip';
-import { AssetBalance, SwopFiExchangerData } from 'ui/reducers/updateState';
-import { useAppSelector } from 'ui/store';
+import { AccountBalance, AssetBalance } from 'ui/reducers/updateState';
+import { AssetDetail } from 'ui/services/Background';
+import { useAppDispatch, useAppSelector } from 'ui/store';
 import {
-  calcExchangeDetails,
-  getAssetBalance,
-  getDefaultExchanger,
-  getKeeperCommission,
-} from './utils';
-import { Button } from '../../ui/buttons/Button';
-import { Loader } from '../../ui/loader/Loader';
-import { Select } from '../../ui/select/Select';
+  ExchangeChannelClient,
+  ExchangeChannelError,
+  ExchangeChannelErrorCode,
+  ExchangeChannelErrorType,
+  ExchangePool,
+} from './channelClient';
 import * as styles from './form.module.css';
+import { updateAssets } from 'ui/actions/assets';
+import { setUiState } from 'ui/actions/uiState';
 
-const SLIPPAGE_TOLERANCE_PERCENTS = new BigNumber(0.1);
+const SLIPPAGE_TOLERANCE_OPTIONS = [
+  new BigNumber(0.1),
+  new BigNumber(0.5),
+  new BigNumber(1),
+  new BigNumber(3),
+];
+
+const KEEPER_FEE = new BigNumber(0.1);
+
+function getAssetBalance(asset: Asset, accountBalance: AccountBalance) {
+  return asset.id === 'WAVES'
+    ? new Money(accountBalance.available, asset)
+    : new Money(accountBalance.assets?.[asset.id]?.balance || '0', asset);
+}
 
 interface Props {
-  exchangers: { [exchangerId: string]: SwopFiExchangerData };
+  initialFromAssetId: string;
+  initialToAssetId: string;
   isSwapInProgress: boolean;
   swapErrorMessage: string;
+  swappableAssets: AssetDetail[];
   wavesFeeCoins: number;
   onSwap: (data: {
-    exchangerId: string;
     feeAssetId: string;
     fromAssetId: string;
-    fromCoins: string;
-    minReceivedCoins: string;
-    toAssetId: string;
-    toCoins: string;
+    fromCoins: BigNumber;
+    minReceivedCoins: BigNumber;
+    route: ExchangePool[];
+    slippageTolerance: number;
   }) => void;
 }
 
-interface State {
-  detailsUpdateIsPending: boolean;
-  directionSwapped: boolean;
-  exchangerId: string;
-  feeCoins: BigNumber;
-  fromAmount: string;
-  minReceivedCoins: BigNumber;
+interface ExchangeInfoState {
   priceImpact: number;
-  swapRate: BigNumber | undefined;
+  route: ExchangePool[];
   toAmountTokens: BigNumber;
-  txFeeAssetId: string;
+  worstAmountTokens: BigNumber;
 }
 
-const ASSETS_FORMAT = {
-  fractionGroupSeparator: '',
-  fractionGroupSize: 0,
-  decimalSeparator: '.',
-  groupSeparator: ' ',
-  groupSize: 3,
-  prefix: '',
-  secondaryGroupSize: 0,
-  suffix: '',
-};
-
 export function SwapForm({
-  exchangers,
+  initialFromAssetId,
+  initialToAssetId,
   isSwapInProgress,
   swapErrorMessage,
+  swappableAssets,
   wavesFeeCoins,
   onSwap,
 }: Props) {
   const { t } = useTranslation();
-  const assets = useAppSelector(state => state.assets);
 
+  const assets = useAppSelector(state => state.assets);
   const accountBalance = useAppSelector(
     state => state.balances[state.selectedAccount.address]
   );
 
   const currentNetwork = useAppSelector(state => state.currentNetwork);
 
-  const [state, dispatch] = React.useReducer(
-    (
-      prevState: State,
-      action:
-        | { type: 'SET_EXCHANGER'; exchangerId: string }
-        | { type: 'SWAP_DIRECTION' }
-        | { type: 'SET_FROM_AMOUNT'; value: string }
-        | { type: 'SET_TX_FEE_ASSET_ID'; value: string }
-        | {
-            type: 'SET_EXCHANGE_DETAILS';
-            feeCoins: BigNumber;
-            minReceivedCoins: BigNumber;
-            priceImpact: number;
-            swapRate: BigNumber;
-            toAmountTokens: BigNumber;
-          }
-    ): State => {
-      switch (action.type) {
-        case 'SET_EXCHANGER':
-          return {
-            ...prevState,
-            directionSwapped: false,
-            exchangerId: action.exchangerId,
-          };
-        case 'SWAP_DIRECTION':
-          return {
-            ...prevState,
-            detailsUpdateIsPending: true,
-            directionSwapped: !prevState.directionSwapped,
-            fromAmount: prevState.toAmountTokens.toFixed(),
-            toAmountTokens: new BigNumber(prevState.fromAmount),
-          };
-        case 'SET_FROM_AMOUNT':
-          return {
-            ...prevState,
-            detailsUpdateIsPending: true,
-            fromAmount: action.value,
-          };
-        case 'SET_TX_FEE_ASSET_ID':
-          return {
-            ...prevState,
-            txFeeAssetId: action.value,
-          };
-        case 'SET_EXCHANGE_DETAILS':
-          return {
-            ...prevState,
-            detailsUpdateIsPending: false,
-            feeCoins: action.feeCoins,
-            minReceivedCoins: action.minReceivedCoins,
-            priceImpact: action.priceImpact,
-            swapRate: action.swapRate,
-            toAmountTokens: action.toAmountTokens,
-          };
-      }
-    },
-    undefined,
-    (): State => {
-      const defaultExchanger = getDefaultExchanger(currentNetwork, exchangers);
-
-      return {
-        detailsUpdateIsPending: false,
-        directionSwapped: false,
-        exchangerId: defaultExchanger.id,
-        feeCoins: new BigNumber(0),
-        fromAmount: '',
-        priceImpact: 0,
-        minReceivedCoins: new BigNumber(0),
-        swapRate: undefined,
-        toAmountTokens: new BigNumber(0),
-        txFeeAssetId: 'WAVES',
-      };
-    }
+  const swapChannel = useAppSelector(
+    state => state.config.network_config[state.currentNetwork].swapChannel
   );
 
-  const exchanger = exchangers[state.exchangerId];
-  const exchangerVersion = Number(exchanger.version.split('.')[0]);
-
-  const commission = React.useMemo(
-    () =>
-      new BigNumber(exchanger.commission).div(
-        new BigNumber(exchanger.commission_scale_delimiter)
-      ),
-    [exchanger.commission, exchanger.commission_scale_delimiter]
-  );
-
-  const [fromAssetId, toAssetId] = state.directionSwapped
-    ? [exchanger.B_asset_id, exchanger.A_asset_id]
-    : [exchanger.A_asset_id, exchanger.B_asset_id];
-
-  const [fromBalance, toBalance] = state.directionSwapped
-    ? [exchanger.B_asset_balance, exchanger.A_asset_balance]
-    : [exchanger.A_asset_balance, exchanger.B_asset_balance];
-
-  const fromAssetDetail = assets[fromAssetId];
-  const toAssetDetail = assets[toAssetId];
-
-  const fromAsset = React.useMemo(
-    () => new Asset(fromAssetDetail),
-    [fromAssetDetail]
-  );
-  const toAsset = React.useMemo(
-    () => new Asset(toAssetDetail),
-    [toAssetDetail]
-  );
-
-  const latestFromAmountRef = React.useRef(state.fromAmount);
-
-  React.useEffect(() => {
-    latestFromAmountRef.current = state.fromAmount;
-  });
-
-  const updateExchangeDetailsTimeoutRef = React.useRef<number | null>(null);
-
-  const updateExchangeDetailsPromiseRef = React.useRef<Promise<void> | null>(
-    null
-  );
-
-  const updateExchangeDetails = React.useCallback(async () => {
-    const currentPromise = calcExchangeDetails({
-      commission,
-      exchangerVersion,
-      fromAmountCoins: Money.fromTokens(
-        new BigNumber(latestFromAmountRef.current || '0'),
-        fromAsset
-      ).getCoins(),
-      fromAsset,
-      fromBalanceCoins: new BigNumber(fromBalance),
-      slippageTolerancePercents: SLIPPAGE_TOLERANCE_PERCENTS,
-      toAsset,
-      toBalanceCoins: new BigNumber(toBalance),
-    }).then(
-      ({
-        feeCoins,
-        minReceivedCoins,
-        priceImpact,
-        swapRate,
-        toAmountCoins,
-      }) => {
-        if (updateExchangeDetailsPromiseRef.current === currentPromise) {
-          dispatch({
-            type: 'SET_EXCHANGE_DETAILS',
-            feeCoins,
-            minReceivedCoins,
-            priceImpact,
-            swapRate,
-            toAmountTokens: Money.fromCoins(toAmountCoins, toAsset).getTokens(),
-          });
-        }
-      }
-    );
-
-    updateExchangeDetailsPromiseRef.current = currentPromise;
-  }, [
-    commission,
-    exchangerVersion,
-    fromAsset,
-    fromBalance,
-    toAsset,
-    toBalance,
-  ]);
-
-  const updateExchangeDetailsRef = React.useRef(updateExchangeDetails);
-
-  React.useEffect(() => {
-    updateExchangeDetails();
-    updateExchangeDetailsRef.current = updateExchangeDetails;
-
-    return () => {
-      updateExchangeDetailsPromiseRef.current = null;
-    };
-  }, [updateExchangeDetails]);
-
-  const fromAssetBalance = getAssetBalance(fromAsset, accountBalance);
-  const toAssetBalance = getAssetBalance(toAsset, accountBalance);
+  const wavesFeeCoinsBN = new BigNumber(wavesFeeCoins);
 
   const sponsoredAssetBalanceEntries = Object.entries(
     accountBalance.assets
   ).filter(([assetId, assetBalance]) => {
-    if (assetId === 'WAVES') {
-      return true;
-    }
-
-    const wavesFeeCoinsBN = new BigNumber(wavesFeeCoins);
-
     const sponsoredAssetFee = convertToSponsoredAssetFee(
       wavesFeeCoinsBN,
       new Asset(assets[assetId]),
       assetBalance
-    ).getCoins();
+    );
 
     return (
       assetBalance.minSponsoredAssetFee != null &&
       new BigNumber(assetBalance.sponsorBalance).gte(wavesFeeCoinsBN) &&
-      new BigNumber(assetBalance.balance).gte(sponsoredAssetFee)
+      new BigNumber(assetBalance.balance).gte(sponsoredAssetFee.getCoins())
     );
   });
+
+  if (sponsoredAssetBalanceEntries.length === 0) {
+    sponsoredAssetBalanceEntries.push([
+      'WAVES',
+      accountBalance.assets['WAVES'],
+    ]);
+  }
+
+  const [{ fromAssetId, toAssetId }, setAssetIds] = React.useState({
+    fromAssetId: initialFromAssetId,
+    toAssetId: initialToAssetId,
+  });
+
+  const [feeAssetId, setFeeAssetId] = React.useState(
+    sponsoredAssetBalanceEntries[0][0]
+  );
+
+  const fromAsset = React.useMemo(
+    () => new Asset(assets[fromAssetId]),
+    [assets, fromAssetId]
+  );
+
+  const toAsset = React.useMemo(
+    () => new Asset(assets[toAssetId]),
+    [assets, toAssetId]
+  );
+
+  const feeAsset = new Asset(assets[feeAssetId]);
+
+  const fromAssetBalance = getAssetBalance(fromAsset, accountBalance);
+  const toAssetBalance = getAssetBalance(toAsset, accountBalance);
+  const feeAssetBalance = getAssetBalance(feeAsset, accountBalance);
 
   function formatSponsoredAssetBalanceEntry([assetId, assetBalance]: [
     string,
@@ -286,155 +149,443 @@ export function SwapForm({
     return `${fee.getTokens().toFormat()} ${fee.asset.displayName}`;
   }
 
-  const fromAmountTokens = new BigNumber(state.fromAmount || '0');
+  const [fromAmountValue, setFromAmountValue] = React.useState('');
+  const [isPriceDirectionSwapped, setIsPriceDirectionSwapped] =
+    React.useState(false);
 
-  const amountError = fromAmountTokens.gt(
-    new BigNumber(fromAssetBalance.getTokens())
-  )
-    ? t('swap.insufficientFundsError')
-    : null;
+  const fromAmountTokens = new BigNumber(fromAmountValue || '0');
 
-  function setFromAmount(newFromAmount: string) {
-    console.log(state.fromAmount, newFromAmount);
+  const [exchangeInfo, setExchangeInfo] =
+    React.useState<ExchangeInfoState | null>(null);
 
-    if (newFromAmount !== state.fromAmount) {
-      dispatch({ type: 'SET_FROM_AMOUNT', value: newFromAmount });
+  const [channelClient, setChannelClient] =
+    React.useState<ExchangeChannelClient | null>(null);
 
-      if (updateExchangeDetailsTimeoutRef.current != null) {
-        window.clearTimeout(updateExchangeDetailsTimeoutRef.current);
+  React.useEffect(() => {
+    const client = new ExchangeChannelClient(
+      new URL('/v1', swapChannel).toString()
+    );
+
+    setChannelClient(client);
+
+    return () => {
+      client.close();
+    };
+  }, [swapChannel]);
+
+  const latestFromAmountValueRef = React.useRef(fromAmountValue);
+
+  React.useEffect(() => {
+    latestFromAmountValueRef.current = fromAmountValue;
+  }, [fromAmountValue]);
+
+  const [exchangeChannelError, setExchangeChannelError] = React.useState<
+    string | null
+  >(null);
+
+  const watchExchange = React.useCallback(() => {
+    let fromTokens = new BigNumber(latestFromAmountValueRef.current || '0');
+
+    if (fromTokens.eq(0)) {
+      fromTokens = new BigNumber(1);
+    }
+
+    return channelClient?.exchange(
+      {
+        fromAmountCoins: Money.fromTokens(fromTokens, fromAsset).getCoins(),
+        fromAsset,
+        toAsset,
+      },
+      (err, response) => {
+        if (err) {
+          if (err instanceof ExchangeChannelError) {
+            if (err.type === ExchangeChannelErrorType.ConnectionError) {
+              setExchangeChannelError(t('swap.exchangeChannelConnectionError'));
+              return;
+            } else if (err.type === ExchangeChannelErrorType.ExchangeError) {
+              if (err.code === ExchangeChannelErrorCode.INVALID_ASSET_PAIR) {
+                setExchangeChannelError(
+                  t('swap.exchangeChannelInvalidAssetPairError')
+                );
+                return;
+              }
+            }
+          }
+
+          setExchangeChannelError(t('swap.exchangeChannelUnknownError'));
+          return;
+        }
+
+        const { priceImpact, route, toAmountCoins, worstAmountCoins } =
+          response;
+
+        setExchangeChannelError(null);
+
+        setExchangeInfo({
+          priceImpact,
+          route,
+          toAmountTokens: new Money(toAmountCoins, toAsset).getTokens(),
+          worstAmountTokens: new Money(worstAmountCoins, toAsset).getTokens(),
+        });
+      }
+    );
+  }, [channelClient, fromAsset, toAsset]);
+
+  React.useEffect(watchExchange, [watchExchange]);
+
+  const watchExchangeRef = React.useRef(watchExchange);
+
+  React.useEffect(() => {
+    watchExchangeRef.current = watchExchange;
+  }, [watchExchange]);
+
+  const sponsoredAssetFee = convertToSponsoredAssetFee(
+    wavesFeeCoinsBN,
+    feeAsset,
+    accountBalance.assets[feeAssetId]
+  );
+
+  const validationErrorMessage =
+    fromAmountTokens.gt(fromAssetBalance.getTokens()) ||
+    feeAssetBalance.getTokens().lt(sponsoredAssetFee.getTokens()) ||
+    (fromAssetId === feeAssetId &&
+      fromAmountTokens
+        .add(sponsoredAssetFee.getTokens())
+        .gt(fromAssetBalance.getTokens()))
+      ? t('swap.insufficientFundsError')
+      : null;
+
+  const watchExchangeTimeoutRef = React.useRef<number | null>(null);
+
+  function setFromAmount(newValue: string) {
+    if (newValue !== fromAmountValue) {
+      setFromAmountValue(newValue);
+      setExchangeInfo(null);
+
+      if (watchExchangeTimeoutRef.current != null) {
+        window.clearTimeout(watchExchangeTimeoutRef.current);
       }
 
-      updateExchangeDetailsTimeoutRef.current = window.setTimeout(() => {
-        updateExchangeDetailsRef.current();
+      watchExchangeTimeoutRef.current = window.setTimeout(() => {
+        watchExchangeRef.current();
       }, 500);
     }
   }
 
+  const [showSelectAsset, setShowSelectAsset] = React.useState<'from' | 'to'>(
+    null
+  );
+
+  const slippageToleranceIndex = useAppSelector(
+    state => state.uiState.slippageToleranceIndex ?? 2
+  );
+
+  const slippageTolerance = SLIPPAGE_TOLERANCE_OPTIONS[slippageToleranceIndex];
+
+  const minReceived = exchangeInfo
+    ? Money.fromTokens(
+        fromAmountTokens.eq(0)
+          ? new BigNumber(0)
+          : exchangeInfo.toAmountTokens
+              .mul(new BigNumber(100).sub(slippageTolerance).sub(KEEPER_FEE))
+              .div(100)
+              .roundTo(toAsset.precision, BigNumber.ROUND_MODE.ROUND_FLOOR),
+        toAsset
+      )
+    : null;
+
+  const routeAssets = React.useMemo(
+    () =>
+      (exchangeInfo ? exchangeInfo.route : [])
+        .flatMap((pool, index) =>
+          index === 0 ? [pool.fromAssetId, pool.toAssetId] : [pool.toAssetId]
+        )
+        .map(assetId => new Asset(assets[assetId])),
+    [assets, exchangeInfo]
+  );
+
+  const dispatch = useAppDispatch();
+
+  React.useEffect(() => {
+    const assetsToUpdate = Array.from(
+      new Set(routeAssets.filter(asset => asset == null))
+    );
+
+    if (assetsToUpdate.length !== 0) {
+      dispatch(updateAssets(assetsToUpdate));
+    }
+  }, [dispatch, routeAssets]);
+
   return (
     <form
-      className={styles.root}
       onSubmit={event => {
         event.preventDefault();
 
         onSwap({
-          exchangerId: state.exchangerId,
-          feeAssetId: state.txFeeAssetId,
-          fromAssetId: fromAsset.id,
-          fromCoins: Money.fromTokens(fromAmountTokens, fromAsset)
-            .getCoins()
-            .toFixed(),
-          minReceivedCoins: state.minReceivedCoins.toFixed(),
-          toAssetId: toAsset.id,
-          toCoins: Money.fromTokens(state.toAmountTokens, toAsset)
-            .getCoins()
-            .toFixed(),
+          feeAssetId,
+          fromAssetId,
+          fromCoins: Money.fromTokens(fromAmountTokens, fromAsset).getCoins(),
+          minReceivedCoins: minReceived.getCoins(),
+          route: exchangeInfo.route,
+          slippageTolerance: slippageTolerance.toNumber() * 10,
         });
       }}
     >
-      <div className={styles.pairSelect}>
-        <div className="input-title basic500 tag1">
-          <Trans i18nKey="swap.pairInputLabel" />
-        </div>
+      <AssetAmountInput
+        balance={fromAssetBalance}
+        label={t('swap.fromInputLabel', {
+          asset: fromAssetBalance.asset.displayName,
+        })}
+        value={fromAmountValue}
+        onChange={newValue => {
+          setFromAmount(newValue);
+        }}
+        onMaxClick={() => {
+          let max = fromAssetBalance;
 
-        <Select
-          className="fullwidth"
-          selected={state.exchangerId}
-          selectList={Object.values(exchangers)
-            .sort((exchangerA, exchangerB) => {
-              const a = new BigNumber(exchangerA.totalLiquidity);
-              const b = new BigNumber(exchangerB.totalLiquidity);
+          if (feeAssetId === fromAssetId) {
+            const fee = convertToSponsoredAssetFee(
+              new BigNumber(wavesFeeCoins),
+              new Asset(assets[feeAssetId]),
+              accountBalance.assets[feeAssetId]
+            );
 
-              const diff = b.sub(a);
+            max = max.gt(fee) ? max.minus(fee) : max.cloneWithCoins(0);
+          }
 
-              return diff.isNegative() ? -1 : diff.isPositive() ? 1 : 0;
-            })
-            .map(exchanger => ({
-              id: exchanger.id,
-              text: `${assets[exchanger.A_asset_id].displayName}/${
-                assets[exchanger.B_asset_id].displayName
-              }`,
-              value: exchanger.id,
-            }))}
-          onSelectItem={(_id, value) => {
-            dispatch({
-              type: 'SET_EXCHANGER',
-              exchangerId: value,
-            });
-          }}
-        />
-      </div>
+          setFromAmount(max.getTokens().toFixed());
+        }}
+        onLogoClick={() => {
+          setShowSelectAsset('from');
+        }}
+      />
 
-      <div>
-        <AssetAmountInput
-          balance={fromAssetBalance}
-          label={t('swap.fromInputLabel', {
-            asset: fromAssetBalance.asset.displayName,
-          })}
-          value={state.fromAmount}
-          onChange={newValue => {
-            setFromAmount(newValue);
-          }}
-          onMaxClick={() => {
-            let max = fromAssetBalance;
-
-            if (state.txFeeAssetId === fromAssetId) {
-              const fee = convertToSponsoredAssetFee(
-                new BigNumber(wavesFeeCoins),
-                new Asset(assets[state.txFeeAssetId]),
-                accountBalance.assets[state.txFeeAssetId]
-              );
-
-              max = max.minus(fee);
+      <div className={styles.swapDirectionBtnWrapper}>
+        <button
+          className={styles.swapDirectionBtn}
+          disabled={exchangeInfo == null}
+          type="button"
+          onClick={() => {
+            if (!exchangeInfo) {
+              return;
             }
 
-            setFromAmount(max.getTokens().toFixed());
+            setAssetIds(prevState => ({
+              fromAssetId: prevState.toAssetId,
+              toAssetId: prevState.fromAssetId,
+            }));
+
+            const newFromAmount =
+              fromAmountValue === ''
+                ? ''
+                : fromAmountTokens.eq(0)
+                ? '0'
+                : exchangeInfo.toAmountTokens.toFixed();
+
+            setFromAmount(newFromAmount);
+            setIsPriceDirectionSwapped(prevState => !prevState);
           }}
-        />
-
-        <div className={styles.swapDirectionBtnWrapper}>
-          <button
-            className={styles.swapDirectionBtn}
-            disabled={state.detailsUpdateIsPending}
-            type="button"
-            onClick={() => {
-              dispatch({ type: 'SWAP_DIRECTION' });
-            }}
+        >
+          <svg
+            className={styles.swapDirectionBtnIcon}
+            width="14"
+            height="14"
+            fill="currentColor"
           >
-            <svg
-              className={styles.swapDirectionBtnIcon}
-              width="14"
-              height="14"
-              fill="currentColor"
-            >
-              <path d="M3.4 3.43 2.131 4.697a.6.6 0 0 1-.848-.849l2.29-2.29a.6.6 0 0 1 .85 0l2.29 2.29a.6.6 0 0 1-.848.849L4.599 3.43V12a.6.6 0 0 1-1.2 0V3.43ZM10.6 10.551l1.266-1.266a.6.6 0 1 1 .848.848l-2.29 2.291a.6.6 0 0 1-.85 0l-2.29-2.29a.6.6 0 0 1 .848-.85L9.4 10.552v-8.57a.6.6 0 0 1 1.2 0v8.57Z" />
-            </svg>
-          </button>
-        </div>
+            <path d="M3.4 3.43 2.131 4.697a.6.6 0 0 1-.848-.849l2.29-2.29a.6.6 0 0 1 .85 0l2.29 2.29a.6.6 0 0 1-.848.849L4.599 3.43V12a.6.6 0 0 1-1.2 0V3.43ZM10.6 10.551l1.266-1.266a.6.6 0 1 1 .848.848l-2.29 2.291a.6.6 0 0 1-.85 0l-2.29-2.29a.6.6 0 0 1 .848-.85L9.4 10.552v-8.57a.6.6 0 0 1 1.2 0v8.57Z" />
+          </svg>
+        </button>
+      </div>
 
+      <div className={styles.toAmountInput}>
         <AssetAmountInput
           balance={toAssetBalance}
           label={t('swap.toInputLabel', {
             asset: toAssetBalance.asset.displayName,
           })}
-          loading={state.detailsUpdateIsPending}
-          value={state.toAmountTokens.toFixed()}
+          loading={exchangeInfo == null}
+          value={
+            exchangeInfo == null
+              ? ''
+              : (fromAmountTokens.eq(0)
+                  ? new BigNumber(0)
+                  : exchangeInfo.toAmountTokens
+                ).toFixed()
+          }
+          onLogoClick={() => {
+            setShowSelectAsset('to');
+          }}
         />
+
+        {exchangeInfo == null || fromAmountTokens.eq(0) ? null : (
+          <div className={styles.toAmountInputGainBadge}>
+            {exchangeInfo.toAmountTokens.eq(exchangeInfo.worstAmountTokens) ? (
+              <Trans i18nKey="swap.gainBestPrice" />
+            ) : (
+              <Tooltip
+                className={styles.tooltipContent}
+                content={<Trans i18nKey="swap.gainTooltip" />}
+              >
+                {props => (
+                  <span {...props}>
+                    +
+                    {exchangeInfo.toAmountTokens
+                      .sub(exchangeInfo.worstAmountTokens)
+                      .toFixed(
+                        toAsset.precision,
+                        BigNumber.ROUND_MODE.ROUND_FLOOR
+                      )}{' '}
+                    {toAsset.displayName} (
+                    {exchangeInfo.toAmountTokens
+                      .div(exchangeInfo.worstAmountTokens)
+                      .sub(1)
+                      .mul(100)
+                      .toFixed(2, BigNumber.ROUND_MODE.ROUND_HALF_EVEN)}
+                    %)
+                  </span>
+                )}
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className={styles.priceRow}>
-        <div className={styles.priceRowLabel}>
-          <Trans i18nKey="swap.priceLabel" />
+      {exchangeChannelError && (
+        <div className={styles.error}>{exchangeChannelError}</div>
+      )}
+
+      <div className={styles.summary}>
+        <div className={styles.summaryRow}>
+          <div className={styles.summaryLabel}>
+            <Tooltip
+              className={styles.tooltipContent}
+              content={<Trans i18nKey="swap.slippageToleranceTooltip" />}
+            >
+              {props => (
+                <span className={styles.summaryLabelTooltip} {...props}>
+                  <Trans i18nKey="swap.slippageTolerance" />
+                </span>
+              )}
+            </Tooltip>
+          </div>
+
+          <div className={styles.summaryValue}>
+            {SLIPPAGE_TOLERANCE_OPTIONS.map((slippageTolerance, index) => {
+              const id = `slippageTolerance-${index}`;
+
+              return (
+                <React.Fragment key={index}>
+                  <input
+                    checked={index === slippageToleranceIndex}
+                    className={styles.slippageToleranceInput}
+                    id={id}
+                    name="slippageTolerance"
+                    type="radio"
+                    value={index}
+                    onChange={() => {
+                      dispatch(setUiState({ slippageToleranceIndex: index }));
+                    }}
+                  />
+
+                  <label className={styles.slippageToleranceLabel} htmlFor={id}>
+                    <span className={styles.slippageToleranceLabelInner}>
+                      {slippageTolerance.toFixed()}%
+                    </span>
+                  </label>
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
 
-        <div className={styles.priceRowValue}>
-          {state.swapRate && !state.detailsUpdateIsPending ? (
-            <div>
-              1 {fromAsset.displayName} ~ {state.swapRate.toFixed()}{' '}
-              {toAsset.displayName}
-            </div>
-          ) : (
-            <Loader />
-          )}
+        <div className={styles.summaryRow}>
+          <div className={styles.summaryLabel}>
+            <Tooltip
+              className={styles.tooltipContent}
+              content={<Trans i18nKey="swap.minimumReceivedTooltip" />}
+            >
+              {props => (
+                <span className={styles.summaryLabelTooltip} {...props}>
+                  <Trans i18nKey="swap.minimumReceived" />
+                </span>
+              )}
+            </Tooltip>
+          </div>
+
+          <div className={styles.summaryValue}>
+            {exchangeInfo == null ? (
+              <Loader />
+            ) : (
+              <span className={styles.summaryValueText}>
+                {minReceived
+                  .getTokens()
+                  .toFormat(
+                    toAsset.precision,
+                    BigNumber.ROUND_MODE.ROUND_FLOOR
+                  )}{' '}
+                {toAsset.displayName}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.summaryRow}>
+          <div className={styles.summaryLabel}>
+            <Trans i18nKey="swap.priceLabel" />
+          </div>
+
+          <div className={styles.summaryValue}>
+            {exchangeInfo == null ? (
+              <Loader />
+            ) : (
+              <div>
+                <button
+                  className={styles.swapPriceDirectionBtn}
+                  type="button"
+                  onClick={() => {
+                    setIsPriceDirectionSwapped(prevState => !prevState);
+                  }}
+                >
+                  <svg
+                    className={styles.swapPriceDirectionBtnIcon}
+                    width="14"
+                    height="14"
+                    fill="currentColor"
+                    viewBox="0 0 14 14"
+                  >
+                    <path d="m9.293 2.124 1.267 1.267H1.99a.6.6 0 0 0 0 1.2h8.57L9.293 5.858a.6.6 0 1 0 .849.848l2.29-2.29a.6.6 0 0 0 0-.85l-2.29-2.29a.6.6 0 0 0-.849.848Zm-4.588 9.733L3.44 10.591h8.57a.6.6 0 1 0 0-1.2h-8.57l1.266-1.267a.6.6 0 0 0-.848-.848l-2.291 2.29a.6.6 0 0 0 0 .85l2.29 2.29a.6.6 0 0 0 .85-.848Z" />
+                  </svg>
+                </button>
+
+                {isPriceDirectionSwapped ? (
+                  <span>
+                    1 {toAsset.displayName} ~{' '}
+                    {(fromAmountTokens.eq(0)
+                      ? new BigNumber(1)
+                      : fromAmountTokens
+                    )
+                      .div(exchangeInfo.toAmountTokens)
+                      .toFixed(
+                        fromAsset.precision,
+                        BigNumber.ROUND_MODE.ROUND_FLOOR
+                      )}{' '}
+                    {fromAsset.displayName}
+                  </span>
+                ) : (
+                  <span>
+                    1 {fromAsset.displayName} ~{' '}
+                    {exchangeInfo.toAmountTokens
+                      .div(fromAmountTokens.eq(0) ? 1 : fromAmountTokens)
+                      .toFixed(
+                        toAsset.precision,
+                        BigNumber.ROUND_MODE.ROUND_FLOOR
+                      )}{' '}
+                    {toAsset.displayName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -442,8 +593,8 @@ export function SwapForm({
         className="fullwidth"
         disabled={
           fromAmountTokens.eq(0) ||
-          amountError != null ||
-          state.detailsUpdateIsPending ||
+          validationErrorMessage != null ||
+          exchangeInfo == null ||
           isSwapInProgress
         }
         loading={isSwapInProgress}
@@ -452,160 +603,158 @@ export function SwapForm({
         <Trans i18nKey="swap.submitButtonText" />
       </Button>
 
-      {(amountError || swapErrorMessage) && (
-        <div className={styles.error}>{amountError || swapErrorMessage}</div>
+      {(validationErrorMessage || swapErrorMessage) && (
+        <div className={styles.error}>
+          {validationErrorMessage || swapErrorMessage}
+        </div>
       )}
 
-      <table className={styles.summaryTable}>
-        <tbody>
-          <tr>
-            <th>
-              <Tooltip
-                className={styles.summaryTableTooltipContent}
-                content={<Trans i18nKey="swap.minimumReceivedTooltip" />}
-              >
-                {props => (
-                  <span className={styles.summaryTableTooltip} {...props}>
-                    <Trans i18nKey="swap.minimumReceived" />
-                  </span>
-                )}
-              </Tooltip>
-            </th>
-
-            <td>
-              {state.detailsUpdateIsPending ? (
-                <Loader />
-              ) : (
-                <div className={styles.summaryTableValue}>
-                  {Money.fromCoins(state.minReceivedCoins, toAsset)
-                    .getTokens()
-                    .toFormat(
-                      toAsset.precision,
-                      BigNumber.ROUND_MODE.ROUND_FLOOR,
-                      ASSETS_FORMAT
-                    )}{' '}
-                  {toAsset.displayName}
-                </div>
+      <div className={styles.summary}>
+        <div className={styles.summaryRow}>
+          <div className={styles.summaryLabel}>
+            <Tooltip
+              className={styles.tooltipContent}
+              content={<Trans i18nKey="swap.routeTooltip" />}
+            >
+              {props => (
+                <span className={styles.summaryLabelTooltip} {...props}>
+                  <Trans i18nKey="swap.route" />
+                </span>
               )}
-            </td>
-          </tr>
+            </Tooltip>
+          </div>
 
-          <tr>
-            <th>
-              <Tooltip
-                className={styles.summaryTableTooltipContent}
-                content={<Trans i18nKey="swap.priceImpactTooltip" />}
-              >
-                {props => (
-                  <span className={styles.summaryTableTooltip} {...props}>
-                    <Trans i18nKey="swap.priceImpact" />
-                  </span>
-                )}
-              </Tooltip>
-            </th>
+          <div className={styles.summaryValue}>
+            {exchangeInfo == null ||
+            routeAssets.some(asset => asset == null) ? (
+              <Loader />
+            ) : (
+              <div className={styles.route}>
+                {routeAssets.map((asset, index) => (
+                  <React.Fragment key={asset.id}>
+                    {index !== 0 && (
+                      <svg className={styles.routeItemArrow} viewBox="0 0 7 12">
+                        <path d="M1.115 12L0 10.863L4.768 6L0 1.137L1.115 0L7 6L1.115 12Z" />
+                      </svg>
+                    )}
 
-            <td>
-              {state.detailsUpdateIsPending ? (
-                <Loader />
-              ) : (
-                <div className={styles.summaryTableValue}>
-                  {state.priceImpact}%
-                </div>
+                    <div className={styles.routeItemName}>
+                      {asset.displayName}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.summaryRow}>
+          <div className={styles.summaryLabel}>
+            <Tooltip
+              className={styles.tooltipContent}
+              content={<Trans i18nKey="swap.priceImpactTooltip" />}
+            >
+              {props => (
+                <span className={styles.summaryLabelTooltip} {...props}>
+                  <Trans i18nKey="swap.priceImpact" />
+                </span>
               )}
-            </td>
-          </tr>
+            </Tooltip>
+          </div>
 
-          <tr>
-            <th>
-              <Tooltip
-                className={styles.summaryTableTooltipContent}
-                content={
-                  <Trans
-                    i18nKey="swap.feeTooltip"
-                    values={{
-                      commission: commission.mul(100).toFormat(),
-                      keeperCommission: getKeeperCommission(exchangerVersion)
-                        .mul(100)
-                        .toFormat(),
-                    }}
-                  />
-                }
-              >
-                {props => (
-                  <span className={styles.summaryTableTooltip} {...props}>
-                    <Trans i18nKey="swap.fee" />
-                  </span>
-                )}
-              </Tooltip>
-            </th>
+          <div className={styles.summaryValue}>
+            {exchangeInfo == null ? (
+              <Loader />
+            ) : (
+              <span className={styles.summaryValueText}>
+                {(fromAmountTokens.eq(0)
+                  ? new BigNumber(0)
+                  : new BigNumber(exchangeInfo.priceImpact)
+                ).toFixed(3, BigNumber.ROUND_MODE.ROUND_FLOOR)}
+                %
+              </span>
+            )}
+          </div>
+        </div>
 
-            <td>
-              {state.detailsUpdateIsPending ? (
-                <Loader />
-              ) : (
-                <div className={styles.summaryTableValue}>
-                  {Money.fromCoins(state.feeCoins, toAsset)
-                    .getTokens()
-                    .toFormat(
-                      toAsset.precision,
-                      BigNumber.ROUND_MODE.ROUND_FLOOR,
-                      ASSETS_FORMAT
-                    )}{' '}
-                  {toAsset.displayName} (
-                  {commission
-                    .add(getKeeperCommission(exchangerVersion))
-                    .mul(100)
-                    .toFormat()}
-                  %)
-                </div>
+        <div className={cn(styles.summaryRow, styles.summaryRow_center)}>
+          <div className={styles.summaryLabel}>
+            <Tooltip
+              className={styles.tooltipContent}
+              content={<Trans i18nKey="swap.transactionFeeTooltip" />}
+            >
+              {props => (
+                <span className={styles.summaryLabelTooltip} {...props}>
+                  <Trans i18nKey="swap.transactionFee" />
+                </span>
               )}
-            </td>
-          </tr>
+            </Tooltip>
+          </div>
 
-          <tr>
-            <th>
-              <Tooltip
-                className={styles.summaryTableTooltipContent}
-                content={<Trans i18nKey="swap.transactionFeeTooltip" />}
-              >
-                {props => (
-                  <span className={styles.summaryTableTooltip} {...props}>
-                    <Trans i18nKey="swap.transactionFee" />
-                  </span>
+          <div className={styles.summaryValue}>
+            {sponsoredAssetBalanceEntries.length > 1 ? (
+              <Select
+                listPlacement="top"
+                selected={feeAssetId}
+                selectList={sponsoredAssetBalanceEntries.map(
+                  ([assetId, assetBalance]) => ({
+                    id: assetId,
+                    text: formatSponsoredAssetBalanceEntry([
+                      assetId,
+                      assetBalance,
+                    ]),
+                    value: assetId,
+                  })
                 )}
-              </Tooltip>
-            </th>
+                onSelectItem={(_id, value) => {
+                  setFeeAssetId(value);
+                }}
+              />
+            ) : (
+              <span className={styles.summaryValueText}>
+                {formatSponsoredAssetBalanceEntry(
+                  sponsoredAssetBalanceEntries[0]
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
-            <td>
-              {sponsoredAssetBalanceEntries.length > 1 ? (
-                <Select
-                  listPlacement="top"
-                  selected={state.txFeeAssetId}
-                  selectList={sponsoredAssetBalanceEntries.map(
-                    ([assetId, assetBalance]) => ({
-                      id: assetId,
-                      text: formatSponsoredAssetBalanceEntry([
-                        assetId,
-                        assetBalance,
-                      ]),
-                      value: assetId,
-                    })
-                  )}
-                  onSelectItem={(_id, value) => {
-                    dispatch({ type: 'SET_TX_FEE_ASSET_ID', value });
-                  }}
-                />
-              ) : (
-                <div className={styles.summaryTableValue}>
-                  {formatSponsoredAssetBalanceEntry(
-                    sponsoredAssetBalanceEntries[0]
-                  )}
-                </div>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <Modal
+        showModal={showSelectAsset != null}
+        animation={Modal.ANIMATION.FLASH}
+      >
+        <AssetSelectModal
+          assetBalances={accountBalance.assets}
+          assets={
+            showSelectAsset === 'from'
+              ? swappableAssets.filter(asset => asset.id !== toAssetId)
+              : showSelectAsset === 'to'
+              ? swappableAssets.filter(asset => asset.id !== fromAssetId)
+              : []
+          }
+          network={currentNetwork}
+          onClose={() => {
+            setShowSelectAsset(null);
+          }}
+          onSelect={assetId => {
+            setShowSelectAsset(null);
+
+            if (showSelectAsset === 'from') {
+              setAssetIds(prevState => ({
+                ...prevState,
+                fromAssetId: assetId,
+              }));
+            } else {
+              setAssetIds(prevState => ({
+                ...prevState,
+                toAssetId: assetId,
+              }));
+            }
+          }}
+        />
+      </Modal>
     </form>
   );
 }

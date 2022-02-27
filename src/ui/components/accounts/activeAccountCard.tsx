@@ -3,19 +3,12 @@ import { BigNumber } from '@waves/bignumber';
 import * as React from 'react';
 import { Trans } from 'react-i18next';
 import cn from 'classnames';
-import { WAVESKEEPER_DEBUG } from 'ui/appConfig';
 import { useAppSelector } from 'ui/store';
 import { Avatar } from '../ui/avatar/Avatar';
 import { Balance } from '../ui/balance/Balance';
 import { Copy } from '../ui/copy/Copy';
 import * as styles from './activeAccountCard.module.css';
 import { Tooltip } from '../ui/tooltip';
-
-const SHOW_SWAP_BUTTON_NETWORKS = [''];
-
-if (WAVESKEEPER_DEBUG) {
-  SHOW_SWAP_BUTTON_NETWORKS.push('testnet');
-}
 
 interface Account {
   address: string;
@@ -60,11 +53,7 @@ export function ActiveAccountCard({
         <Tooltip content={<Trans i18nKey="assets.inStorage" />}>
           {props => (
             <button
-              className={cn(
-                styles.buttonWallet,
-                styles.buttonWallet_iconOnly,
-                styles.otherAccountsButton
-              )}
+              className={cn(styles.iconButton, styles.otherAccountsButton)}
               data-testid="otherAccountsButton"
               type="button"
               onClick={onOtherAccountsClick}
@@ -82,14 +71,6 @@ export function ActiveAccountCard({
       />
 
       <div className={styles.controls}>
-        {SHOW_SWAP_BUTTON_NETWORKS.includes(currentNetwork) && (
-          <button
-            className={cn('swapIconBlack', styles.buttonWallet)}
-            onClick={onSwapClick}
-          >
-            <Trans i18nKey="activeAccountCard.swapButton" />
-          </button>
-        )}
 
         <span className={styles.controlsExpand} />
 
@@ -97,11 +78,7 @@ export function ActiveAccountCard({
           {props => (
             <Copy text={account.address} onCopy={onCopy}>
               <button
-                className={cn(
-                  styles.buttonWallet,
-                  styles.buttonWallet_iconOnly,
-                  'copyIconBlack'
-                )}
+                className={cn(styles.iconButton, 'copyIconBlack')}
                 {...props}
               />
             </Copy>
@@ -111,11 +88,7 @@ export function ActiveAccountCard({
         <Tooltip content={<Trans i18nKey="showQR" />} placement="bottom-end">
           {props => (
             <button
-              className={cn(
-                styles.buttonWallet,
-                styles.buttonWallet_iconOnly,
-                'showQrIcon'
-              )}
+              className={cn(styles.iconButton, 'showQrIcon')}
               onClick={onShowQr}
               {...props}
             />

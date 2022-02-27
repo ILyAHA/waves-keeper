@@ -9,7 +9,10 @@ import {
   Network,
   Settings,
 } from './utils/actions';
-import { DEFAULT_ANIMATION_DELAY } from './utils/constants';
+import {
+  SEND_UPDATE_DEBOUNCE_DELAY,
+  STORAGE_SET_DEBOUNCE_DELAY,
+} from './utils/constants';
 
 describe('Account creation', function () {
   this.timeout(60 * 1000);
@@ -294,7 +297,8 @@ describe('Account creation', function () {
             const errorDiv = this.driver.wait(
               until.elementLocated(
                 By.xpath("//div[contains(@class,'-error-error')]")
-              )
+              ),
+              this.wait
             );
             expect(await errorDiv.isDisplayed()).to.be.true;
             expect(await errorDiv.getText()).is.not.empty;
@@ -882,7 +886,7 @@ describe('Account creation', function () {
             await Assets.getAllAccountNames.call(this)
           ).to.have.ordered.members(['test4']);
 
-          await new Promise(resolve => setTimeout(resolve, 1500)); // waiting for save after debounce
+          await this.driver.sleep(STORAGE_SET_DEBOUNCE_DELAY);
 
           expect(await App.decryptVault.call(this)).to.deep.equal([
             {
@@ -973,7 +977,7 @@ describe('Account creation', function () {
             await Assets.getAllAccountNames.call(this)
           ).to.have.ordered.members(['test2']);
 
-          await new Promise(resolve => setTimeout(resolve, 1500)); // waiting for save after debounce
+          await this.driver.sleep(STORAGE_SET_DEBOUNCE_DELAY);
 
           expect(await App.decryptVault.call(this)).to.deep.equal([
             {
@@ -1081,6 +1085,8 @@ describe('Account creation', function () {
             'this is the seed for the test account'
           );
 
+          await this.driver.sleep(SEND_UPDATE_DEBOUNCE_DELAY);
+
           await Assets.addAccount.call(this);
           await this.driver
             .findElement(By.css('[data-testid="importKeystore"]'))
@@ -1111,15 +1117,13 @@ describe('Account creation', function () {
             .findElement(By.css('[data-testid="submitButton"]'))
             .click();
 
-          await new Promise(resolve =>
-            setTimeout(resolve, DEFAULT_ANIMATION_DELAY)
-          );
+          await this.driver.sleep(SEND_UPDATE_DEBOUNCE_DELAY);
 
           expect(
             await Assets.getAllAccountNames.call(this)
           ).to.have.ordered.members(['test2', 'test2 (1)']);
 
-          await new Promise(resolve => setTimeout(resolve, 1500)); // waiting for save after debounce
+          await this.driver.sleep(STORAGE_SET_DEBOUNCE_DELAY);
 
           expect(await App.decryptVault.call(this)).to.include.deep.members([
             {
@@ -1147,6 +1151,8 @@ describe('Account creation', function () {
             'test2 (1)',
             'this is an another seed for the test account'
           );
+
+          await this.driver.sleep(SEND_UPDATE_DEBOUNCE_DELAY);
 
           await Assets.addAccount.call(this);
           await this.driver
@@ -1178,15 +1184,13 @@ describe('Account creation', function () {
             .findElement(By.css('[data-testid="submitButton"]'))
             .click();
 
-          await new Promise(resolve =>
-            setTimeout(resolve, DEFAULT_ANIMATION_DELAY)
-          );
+          await this.driver.sleep(SEND_UPDATE_DEBOUNCE_DELAY);
 
           expect(
             await Assets.getAllAccountNames.call(this)
           ).to.have.ordered.members(['test2', 'test2 (1)', 'test2 (2)']);
 
-          await new Promise(resolve => setTimeout(resolve, 1500)); // waiting for save after debounce
+          await this.driver.sleep(STORAGE_SET_DEBOUNCE_DELAY);
 
           expect(await App.decryptVault.call(this)).to.include.deep.members([
             {

@@ -1,3 +1,4 @@
+import './initProtobuf';
 import './ui/styles/app.styl';
 import './ui/styles/icons.styl';
 import './ui/i18n';
@@ -19,6 +20,8 @@ import { LANGS } from './ui/i18n';
 import backgroundService from './ui/services/Background';
 import { createUiStore } from './ui/store';
 
+const isNotificationWindow = window.location.pathname === '/notification.html';
+
 Sentry.init({
   dsn: __SENTRY_DSN__,
   environment: __SENTRY_ENVIRONMENT__,
@@ -33,7 +36,11 @@ Sentry.init({
   integrations: [new Sentry.Integrations.Breadcrumbs({ dom: false })],
   beforeSend: async (event, hint) => {
     const message =
-      hint.originalException instanceof Error
+      hint.originalException &&
+      typeof hint.originalException === 'object' &&
+      'message' in hint.originalException &&
+      typeof hint.originalException.message === 'string' &&
+      hint.originalException.message
         ? hint.originalException.message
         : String(hint.originalException);
 
@@ -77,9 +84,7 @@ async function startUi() {
     sendUpdate: async state => updateState(state),
     // This method is used in Microsoft Edge browser
     closeEdgeNotificationWindow: async () => {
-      if (
-        window.location.href.split('/').reverse()[0] === 'notification.html'
-      ) {
+      if (isNotificationWindow) {
         window.close();
       }
     },
@@ -100,6 +105,13 @@ async function startUi() {
   // If popup is opened close notification window
   if (extension.extension.getViews({ type: 'popup' }).length > 0) {
     await background.closeNotificationWindow();
+  }
+
+  if (isNotificationWindow) {
+    background.resizeNotificationWindow(
+      357 + window.outerWidth - window.innerWidth,
+      600 + window.outerHeight - window.innerHeight
+    );
   }
 
   const [state, networks] = await Promise.all([

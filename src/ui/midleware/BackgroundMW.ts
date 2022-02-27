@@ -192,6 +192,14 @@ export const getAsset = store => next => action => {
   return next(action);
 };
 
+export const updateAssets = () => next => action => {
+  if (action.type === ACTION.UPDATE_ASSETS) {
+    background.updateAssets(action.payload);
+  }
+
+  return next(action);
+};
+
 export const favoriteAsset = store => next => action => {
   if (action.type === ACTION.FAVORITE_ASSET) {
     background.toggleAssetFavorite(action.payload);
@@ -254,7 +262,16 @@ export const lock = store => next => action => {
 
 export const signAndPublishTransaction = () => next => action => {
   if (action.type === ACTION.SIGN_AND_PUBLISH_TRANSACTION) {
-    background.signAndPublishTransaction(action.payload);
+    background.signAndPublishTransaction(action.payload).catch(err => {
+      if (
+        err instanceof Error &&
+        /user denied request|failed request/i.test(err.message)
+      ) {
+        return;
+      }
+
+      throw err;
+    });
   }
 
   return next(action);
